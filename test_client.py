@@ -131,6 +131,16 @@ sales_return_payload = {
   }
 }
 
+invoice_posting_payload = {
+  "orderNo": "ONORD-1506-0001",
+  "company": "SGL",
+  "orderLineNo": "1",
+  "tagNo": "BB1006480937",
+  "designNo": "BB1-D000144073",
+  "employeeCode": "",
+  "timeStamp": ""
+}
+
 
 def run_tests():
     print("==================================================")
@@ -169,6 +179,18 @@ def run_tests():
     # Test 4: Sales Return Endpoint 2 Success (200)
     print("\n[TEST 4] POST /MelorraIntegration/mel_SalesReturn (Endpoint 2)...")
     res = requests.post(f"{BASE_URL}/MelorraIntegration/mel_SalesReturn", headers=headers_valid, json=sales_return_payload)
+    print(f"HTTP Status: {res.status_code}")
+    print(f"Response: {json.dumps(res.json(), indent=2)}")
+
+    # Test 5: Invoice Posting Endpoint 3 Success (200)
+    print("\n[TEST 5] POST /MelorraIntegration/mel_InvoicePosting/ (Endpoint 3)...")
+    res = requests.post(f"{BASE_URL}/MelorraIntegration/mel_InvoicePosting/", headers=headers_valid, json=invoice_posting_payload)
+    print(f"HTTP Status: {res.status_code}")
+    print(f"Response: {json.dumps(res.json(), indent=2)}")
+
+    # Test 6: Invoice Posting Failure Override (404)
+    print("\n[TEST 6] POST /MelorraIntegration/mel_InvoicePosting/ (Overridden Failure 404 Mode)...")
+    res = requests.post(f"{BASE_URL}/MelorraIntegration/mel_InvoicePosting/", headers=headers_fail, json=invoice_posting_payload)
     print(f"HTTP Status: {res.status_code}")
     print(f"Response: {json.dumps(res.json(), indent=2)}")
 

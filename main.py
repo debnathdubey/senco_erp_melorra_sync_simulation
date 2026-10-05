@@ -235,6 +235,84 @@ async def create_sales_return(
 
 
 # ==========================================
+# ENDPOINT 3: POST /MelorraIntegration/mel_InvoicePosting/
+# ==========================================
+@app.post("/MelorraIntegration/mel_InvoicePosting/", tags=["Melorra Integration"])
+@app.post("/MelorraIntegration/mel_InvoicePosting", tags=["Melorra Integration"], include_in_schema=False)
+async def post_invoice(
+    request: Request,
+    x_api_key: Optional[str] = Header(None, alias="X-Api-Key"),
+    x_simulate_status: Optional[str] = Header(None, alias="X-Simulate-Status"),
+    simulate_status: Optional[str] = Query(None)
+):
+    """
+    Simulates posting an Invoice for a Melorra order line in Senco ERP.
+    Accepts ANY valid JSON payload. tagNo is sent for MTO order invoices.
+    """
+    endpoint = "/MelorraIntegration/mel_InvoicePosting/"
+    try:
+        body = await request.json()
+    except Exception:
+        try:
+            raw_bytes = await request.body()
+            body = {"raw_content": raw_bytes.decode("utf-8", errors="ignore")}
+        except Exception:
+            body = {}
+
+    content_type = request.headers.get("content-type", "")
+    if "application/json" not in content_type.lower():
+        resp = {
+            "Message": "Invalid Content-Type. Expected application/json",
+            "StatusCode": "400",
+            "Status": "Failure",
+            "TagNo": ""
+        }
+        log_request(endpoint, dict(request.headers), body, resp, 400)
+        return JSONResponse(status_code=400, content=resp)
+
+    expected_key = simulation_state["api_key"]
+    if not x_api_key or x_api_key != expected_key:
+        resp = {
+            "Message": "Authentication failed: Invalid or missing X-Api-Key header.",
+            "StatusCode": "401",
+            "Status": "Failure",
+            "TagNo": ""
+        }
+        log_request(endpoint, dict(request.headers), body, resp, 401)
+        return JSONResponse(status_code=401, content=resp)
+
+    target_status = x_simulate_status or simulate_status or simulation_state["default_status"]
+
+    # Echo tagNo from the request (MTO invoices); otherwise generate one
+    tag_no = f"GP{simulation_state['order_id_counter']:09d}"
+    ref_id = ""
+    if isinstance(body, dict):
+        if body.get("tagNo"):
+            tag_no = str(body["tagNo"])
+        ref_id = str(body.get("designNo") or body.get("orderNo") or "")
+
+    if str(target_status) == "200":
+        response_data = {
+            "Message": "Invoice posted successfully.",
+            "StatusCode": "200",
+            "Status": "Success",
+            "TagNo": tag_no
+        }
+        http_status = 200
+    else:
+        response_data = {
+            "Message": f"Invalid order id : {ref_id}",
+            "StatusCode": "404",
+            "Status": "Failure",
+            "TagNo": tag_no
+        }
+        http_status = 404
+
+    log_request(endpoint, dict(request.headers), body, response_data, http_status)
+    return JSONResponse(status_code=http_status, content=response_data)
+
+
+# ==========================================
 # HEALTH & CONTROL APIS
 # ==========================================
 @app.get("/MelorraIntegration/health", tags=["Health"])
@@ -583,6 +661,7 @@ async def serve_dashboard():
           <select id="test-endpoint-select" style="width: 100%; background: #0f172a; color: #fff; border: 1px solid var(--card-border); padding: 10px; border-radius: 8px;" onchange="updatePayloadTemplate()">
             <option value="/MelorraIntegration/mel_SalesOrder">POST /MelorraIntegration/mel_SalesOrder (Endpoint 1)</option>
             <option value="/MelorraIntegration/mel_SalesReturn">POST /MelorraIntegration/mel_SalesReturn (Endpoint 2)</option>
+            <option value="/MelorraIntegration/mel_InvoicePosting/">POST /MelorraIntegration/mel_InvoicePosting/ (Endpoint 3)</option>
           </select>
         </div>
 
@@ -634,6 +713,16 @@ async def serve_dashboard():
             </div>
             <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 6px;">
               Process Sales Return & Customer Refunds in ERP
+            </div>
+          </div>
+
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; border: 1px solid var(--card-border);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span class="endpoint-badge" style="color: #a78bfa;">POST /MelorraIntegration/mel_InvoicePosting/</span>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">Endpoint 3</span>
+            </div>
+            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 6px;">
+              Post Invoice for an Order Line (tagNo for MTO orders)
             </div>
           </div>
         </div>
@@ -773,11 +862,23 @@ async def serve_dashboard():
       }}
     }};
 
+    const sampleInvoicePosting = {{
+      "orderNo": "ONORD-1506-0001",
+      "company": "SGL",
+      "orderLineNo": "1",
+      "tagNo": "BB1006480937",
+      "designNo": "BB1-D000144073",
+      "employeeCode": "",
+      "timeStamp": ""
+    }};
+
     function updatePayloadTemplate() {{
       const select = document.getElementById('test-endpoint-select');
       const payloadArea = document.getElementById('test-payload-input');
       if (select.value.includes('mel_SalesReturn')) {{
         payloadArea.value = JSON.stringify(sampleSalesReturn, null, 2);
+      }} else if (select.value.includes('mel_InvoicePosting')) {{
+        payloadArea.value = JSON.stringify(sampleInvoicePosting, null, 2);
       }} else {{
         payloadArea.value = JSON.stringify(sampleSalesOrder, null, 2);
       }}

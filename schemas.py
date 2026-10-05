@@ -116,6 +116,22 @@ class SalesReturnContainer(BaseModel):
 class SalesReturnRequest(BaseModel):
     SalesReturnOrder: SalesReturnContainer
 
+# --- Invoice Posting Schemas (3rd Endpoint) ---
+class InvoicePostingRequest(BaseModel):
+    orderNo: Optional[str] = ""
+    company: Optional[str] = "SGL"
+    orderLineNo: Optional[str] = ""
+    tagNo: Optional[str] = ""  # In case of MTO Order Invoice
+    designNo: Optional[str] = ""
+    employeeCode: Optional[str] = ""
+    timeStamp: Optional[str] = ""
+
+class InvoicePostingResponse(BaseModel):
+    Message: str
+    StatusCode: str
+    Status: str
+    TagNo: str
+
 # --- Response Schema ---
 class IntegrationResponse(BaseModel):
     Message: str

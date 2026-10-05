@@ -12,9 +12,10 @@ This service provides mock endpoints and configurable responses to simulate sale
 - **Content-Type Validation**: Enforces `application/json`.
 - **Flexible Payload Acceptance**: Accepts **any JSON payload structure** (objects, arrays, strings, custom fields) without schema restriction.
 - **Port 9000**: Configured to run on port `9000` by default.
-- **2 Core Simulation Endpoints**:
+- **3 Core Simulation Endpoints**:
   1. `POST /MelorraIntegration/mel_SalesOrder` — Melorra Online Customer Sales Order insertion simulation.
   2. `POST /MelorraIntegration/mel_SalesReturn` — Melorra Sales Return & Refund processing simulation.
+  3. `POST /MelorraIntegration/mel_InvoicePosting/` — Melorra Invoice Posting simulation.
 - **Dynamic Simulation Controls**:
   - Switch global server response mode between `200 OK (Success)` and `404 Not Found (Failure)`.
   - Override response mode per-request using `X-Simulate-Status: 200` or `X-Simulate-Status: 404` header or `?simulate_status=404` query parameter.
@@ -206,6 +207,44 @@ This service provides mock endpoints and configurable responses to simulate sale
       "Message": "Sales return processing failed. - Original order line not released for return",
       "StatusCode": "404",
       "OrderId": "RET-RET-TSGDIND0000000060861"
+    }
+    ```
+
+---
+
+### 3. Invoice Posting Endpoint
+- **URL**: `POST /MelorraIntegration/mel_InvoicePosting/` (also accepted without the trailing slash)
+- **Request Body (JSON)**:
+```json
+{
+  "orderNo": "ONORD-1506-0001",
+  "company": "SGL",
+  "orderLineNo": "1",
+  "tagNo": "BB1006480937",
+  "designNo": "BB1-D000144073",
+  "employeeCode": "",
+  "timeStamp": ""
+}
+```
+`tagNo` is sent in case of an MTO Order Invoice. When present it is echoed back as `TagNo`; otherwise a generated tag number is returned.
+
+- **Responses**:
+  - **Success (HTTP 200)**:
+    ```json
+    {
+      "Message": "Invoice posted successfully.",
+      "StatusCode": "200",
+      "Status": "Success",
+      "TagNo": "BB1006480937"
+    }
+    ```
+  - **Failure (HTTP 404)**:
+    ```json
+    {
+      "Message": "Invalid order id : BB1-D000144073",
+      "StatusCode": "404",
+      "Status": "Failure",
+      "TagNo": "BB1006480937"
     }
     ```
 
