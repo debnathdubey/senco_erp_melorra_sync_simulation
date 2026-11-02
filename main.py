@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from config import DEFAULT_API_KEY
+from validation import validate_golden_bounty
 from schemas import (
     SalesOrderRequest,
     SalesReturnRequest,
@@ -305,6 +306,96 @@ async def post_invoice(
             "StatusCode": "404",
             "Status": "Failure",
             "TagNo": tag_no
+        }
+        http_status = 404
+
+    log_request(endpoint, dict(request.headers), body, response_data, http_status)
+    return JSONResponse(status_code=http_status, content=response_data)
+
+
+# ==========================================
+# ENDPOINT 4: POST /MelorraIntegration/mel_goldenbounty/
+# ==========================================
+@app.post("/MelorraIntegration/mel_goldenbounty/", tags=["Melorra Integration"])
+@app.post("/MelorraIntegration/mel_goldenbounty", tags=["Melorra Integration"], include_in_schema=False)
+async def post_golden_bounty_installment(
+    request: Request,
+    x_api_key: Optional[str] = Header(None, alias="X-Api-Key"),
+    x_simulate_status: Optional[str] = Header(None, alias="X-Simulate-Status"),
+    simulate_status: Optional[str] = Query(None)
+):
+    """
+    Simulates posting a Golden Bounty scheme enrolment / installment payment in Senco ERP.
+    Validates fields against the Acxiom table structure and returns 400 listing every violation.
+    """
+    endpoint = "/MelorraIntegration/mel_goldenbounty/"
+    invalid_json = False
+    try:
+        body = await request.json()
+    except Exception:
+        invalid_json = True
+        try:
+            raw_bytes = await request.body()
+            body = {"raw_content": raw_bytes.decode("utf-8", errors="ignore")}
+        except Exception:
+            body = {}
+
+    content_type = request.headers.get("content-type", "")
+    if "application/json" not in content_type.lower():
+        resp = {
+            "Message": "Invalid Content-Type. Expected application/json",
+            "StatusCode": "400",
+            "Status": "Failure",
+            "SchemeCode": ""
+        }
+        log_request(endpoint, dict(request.headers), body, resp, 400)
+        return JSONResponse(status_code=400, content=resp)
+
+    expected_key = simulation_state["api_key"]
+    if not x_api_key or x_api_key != expected_key:
+        resp = {
+            "Message": "Authentication failed: Invalid or missing X-Api-Key header.",
+            "StatusCode": "401",
+            "Status": "Failure",
+            "SchemeCode": ""
+        }
+        log_request(endpoint, dict(request.headers), body, resp, 401)
+        return JSONResponse(status_code=401, content=resp)
+
+    # Echo header.schemeCode from the request; otherwise fall back to the spec sample
+    scheme_code = "GB-101"
+    if isinstance(body, dict):
+        gb_header = body.get("header")
+        if isinstance(gb_header, dict) and gb_header.get("schemeCode"):
+            scheme_code = str(gb_header["schemeCode"])
+
+    errors = ["Invalid JSON payload"] if invalid_json else validate_golden_bounty(body)
+    if errors:
+        resp = {
+            "Message": "Validation failed : " + "; ".join(errors),
+            "StatusCode": "400",
+            "Status": "Failure",
+            "SchemeCode": "" if invalid_json else scheme_code
+        }
+        log_request(endpoint, dict(request.headers), body, resp, 400)
+        return JSONResponse(status_code=400, content=resp)
+
+    target_status = x_simulate_status or simulate_status or simulation_state["default_status"]
+
+    if str(target_status) == "200":
+        response_data = {
+            "Message": "Scheme posted successfully.",
+            "StatusCode": "200",
+            "Status": "Success",
+            "SchemeCode": scheme_code
+        }
+        http_status = 200
+    else:
+        response_data = {
+            "Message": f"Invalid Scheme code : {scheme_code}",
+            "StatusCode": "404",
+            "Status": "Failure",
+            "SchemeCode": scheme_code
         }
         http_status = 404
 
@@ -662,6 +753,7 @@ async def serve_dashboard():
             <option value="/MelorraIntegration/mel_SalesOrder">POST /MelorraIntegration/mel_SalesOrder (Endpoint 1)</option>
             <option value="/MelorraIntegration/mel_SalesReturn">POST /MelorraIntegration/mel_SalesReturn (Endpoint 2)</option>
             <option value="/MelorraIntegration/mel_InvoicePosting/">POST /MelorraIntegration/mel_InvoicePosting/ (Endpoint 3)</option>
+            <option value="/MelorraIntegration/mel_goldenbounty/">POST /MelorraIntegration/mel_goldenbounty/ (Endpoint 4)</option>
           </select>
         </div>
 
@@ -723,6 +815,16 @@ async def serve_dashboard():
             </div>
             <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 6px;">
               Post Invoice for an Order Line (tagNo for MTO orders)
+            </div>
+          </div>
+
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; border: 1px solid var(--card-border);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span class="endpoint-badge" style="color: #fbbf24;">POST /MelorraIntegration/mel_goldenbounty/</span>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">Endpoint 4</span>
+            </div>
+            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 6px;">
+              Post Golden Bounty Scheme Enrolment & Installment Payment
             </div>
           </div>
         </div>
@@ -872,6 +974,52 @@ async def serve_dashboard():
       "timeStamp": ""
     }};
 
+    const sampleGoldenBounty = {{
+      "header": {{
+        "company": "SGL",
+        "enrolmentId": "98765",
+        "enrolmentDate": "16-09-2026",
+        "maturityDate": "16-08-2027",
+        "tenure": "12",
+        "installmentAmount": 1000,
+        "copayAmount": 600,
+        "maturityAmount": 12600,
+        "customerId": "C2345",
+        "customerName": "T Ganesha",
+        "address": "H No. 56, First Floor, Mahadevpura",
+        "city": "Banglore",
+        "mobileNo": "9035530992",
+        "emailId": "t.ganesh@Melorra.com",
+        "fnoCustomerId": "CUS23451",
+        "noOfInstallment": "12",
+        "enrolmentStatus": "OnGoing",
+        "schemeCode": "GB12",
+        "schemeName": "GoldenBounty 12 Month",
+        "orderLines": [
+          {{
+            "enrolmentId": "98765",
+            "enrolmentDate": "16-09-2026",
+            "maturityDate": "16-08-2027",
+            "installmentDate": "16-10-2026",
+            "installmentAmount": 1000,
+            "InstallmentNo": "2",
+            "paymentDetails": [
+              {{
+                "paymentMode": "RazorPay",
+                "installmentDate": "16-10-2026",
+                "amount": "1000",
+                "utrNo": "UT564926761G54",
+                "transactionId": "P54637221",
+                "userId": "Usr1",
+                "refNo": "RF67584",
+                "enrolmentId": "98765"
+              }}
+            ]
+          }}
+        ]
+      }}
+    }};
+
     function updatePayloadTemplate() {{
       const select = document.getElementById('test-endpoint-select');
       const payloadArea = document.getElementById('test-payload-input');
@@ -879,6 +1027,8 @@ async def serve_dashboard():
         payloadArea.value = JSON.stringify(sampleSalesReturn, null, 2);
       }} else if (select.value.includes('mel_InvoicePosting')) {{
         payloadArea.value = JSON.stringify(sampleInvoicePosting, null, 2);
+      }} else if (select.value.includes('mel_goldenbounty')) {{
+        payloadArea.value = JSON.stringify(sampleGoldenBounty, null, 2);
       }} else {{
         payloadArea.value = JSON.stringify(sampleSalesOrder, null, 2);
       }}

@@ -12,10 +12,11 @@ This service provides mock endpoints and configurable responses to simulate sale
 - **Content-Type Validation**: Enforces `application/json`.
 - **Flexible Payload Acceptance**: Accepts **any JSON payload structure** (objects, arrays, strings, custom fields) without schema restriction.
 - **Port 9000**: Configured to run on port `9000` by default.
-- **3 Core Simulation Endpoints**:
+- **4 Core Simulation Endpoints**:
   1. `POST /MelorraIntegration/mel_SalesOrder` — Melorra Online Customer Sales Order insertion simulation.
   2. `POST /MelorraIntegration/mel_SalesReturn` — Melorra Sales Return & Refund processing simulation.
   3. `POST /MelorraIntegration/mel_InvoicePosting/` — Melorra Invoice Posting simulation.
+  4. `POST /MelorraIntegration/mel_goldenbounty/` — Melorra Golden Bounty scheme installment posting simulation.
 - **Dynamic Simulation Controls**:
   - Switch global server response mode between `200 OK (Success)` and `404 Not Found (Failure)`.
   - Override response mode per-request using `X-Simulate-Status: 200` or `X-Simulate-Status: 404` header or `?simulate_status=404` query parameter.
@@ -245,6 +246,118 @@ This service provides mock endpoints and configurable responses to simulate sale
       "StatusCode": "404",
       "Status": "Failure",
       "TagNo": "BB1006480937"
+    }
+    ```
+
+---
+
+### 4. Golden Bounty Installment Endpoint
+- **URL**: `POST /MelorraIntegration/mel_goldenbounty/` (also accepted without the trailing slash)
+- **Request Body (JSON)** — all dates are `dd-MM-yyyy`; `fnoCustomerId` is optional (may be blank):
+```json
+{
+  "header": {
+    "company": "SGL",
+    "enrolmentId": "98765",
+    "enrolmentDate": "16-09-2026",
+    "maturityDate": "16-08-2027",
+    "tenure": "12",
+    "installmentAmount": 1000,
+    "copayAmount": 600,
+    "maturityAmount": 12600,
+    "customerId": "C2345",
+    "customerName": "T Ganesha",
+    "address": "H No. 56, First Floor, Mahadevpura",
+    "city": "Banglore",
+    "mobileNo": "9035530992",
+    "emailId": "t.ganesh@Melorra.com",
+    "fnoCustomerId": "CUS23451",
+    "noOfInstallment": "12",
+    "enrolmentStatus": "OnGoing",
+    "schemeCode": "GB12",
+    "schemeName": "GoldenBounty 12 Month",
+    "orderLines": [
+      {
+        "enrolmentId": "98765",
+        "enrolmentDate": "16-09-2026",
+        "maturityDate": "16-08-2027",
+        "installmentDate": "16-10-2026",
+        "installmentAmount": 1000,
+        "InstallmentNo": "2",
+        "paymentDetails": [
+          {
+            "paymentMode": "RazorPay",
+            "installmentDate": "16-10-2026",
+            "amount": "1000",
+            "utrNo": "UT564926761G54",
+            "transactionId": "P54637221",
+            "userId": "Usr1",
+            "refNo": "RF67584",
+            "enrolmentId": "98765"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+`header.schemeCode` is echoed back as `SchemeCode`; if it is missing, `GB-101` is returned.
+
+**Validation**: the payload is checked against the table below (rules live in [validation.py](validation.py)) before the simulated 200/404 result is applied. Any violation returns HTTP 400 listing every failing field:
+- All fields are required except `fnoCustomerId`, payment `installmentDate`, and the payment reference fields `utrNo`, `transactionId`, `refNo`, `userId` (a Cash payment has none).
+- `orderLines` and each line's `paymentDetails` must contain at least one entry.
+- nvarchar fields must not exceed their length; dates must be `dd-MM-yyyy`; Decimal fields must be whole numbers; Numeric(10,2) allows up to 8 digits before and 2 after the decimal point. Numbers may be sent as JSON numbers or numeric strings (`"1000"`).
+- `paymentMode` must be one of `Cash`, `UPI`, `CC`, `RazorPay` (case-insensitive).
+
+| Section | Field | Type | Length |
+| :--- | :--- | :--- | :--- |
+| Header | enrolmentId | nvarchar | 20 |
+| Header | enrolmentDate / maturityDate | Date | 8 |
+| Header | tenure | Decimal | 10 |
+| Header | installmentAmount / copayAmount / maturityAmount | Numeric | 10,2 |
+| Header | customerId | nvarchar | 50 |
+| Header | customerName | nvarchar | 100 |
+| Header | address | nvarchar | 200 |
+| Header | city | nvarchar | 100 |
+| Header | mobileNo | nvarchar | 20 |
+| Header | emailId / fnoCustomerId | nvarchar | 50 |
+| Header | noOfInstallment | Decimal | 10 |
+| Header | enrolmentStatus / schemeCode / schemeName / company | nvarchar | 50 |
+| Line | enrolmentId | nvarchar | 20 |
+| Line | enrolmentDate / maturityDate / installmentDate | Date | 8 |
+| Line | installmentAmount | Numeric | 10,2 |
+| Line | InstallmentNo | Decimal | 10 |
+| Payment | paymentMode (Cash/UPI/CC/RazorPay) | nvarchar | 20 |
+| Payment | amount | Numeric | 10,2 |
+| Payment | utrNo / userId / enrolmentId | nvarchar | 20 |
+| Payment | transactionId / refNo / fnoCustomerId | nvarchar | 50 |
+
+- **Responses**:
+  - **Success (HTTP 200)**:
+    ```json
+    {
+      "Message": "Scheme posted successfully.",
+      "StatusCode": "200",
+      "Status": "Success",
+      "SchemeCode": "GB12"
+    }
+    ```
+  - **Failure (HTTP 404)**:
+    ```json
+    {
+      "Message": "Invalid Scheme code : GB12",
+      "StatusCode": "404",
+      "Status": "Failure",
+      "SchemeCode": "GB12"
+    }
+    ```
+  - **Validation Failure (HTTP 400)**:
+    ```json
+    {
+      "Message": "Validation failed : header.enrolmentDate must be a date in dd-MM-yyyy format; header.customerId is required; header.orderLines[0].paymentDetails[0].utrNo exceeds max length 20 (33 chars)",
+      "StatusCode": "400",
+      "Status": "Failure",
+      "SchemeCode": "GB12"
     }
     ```
 

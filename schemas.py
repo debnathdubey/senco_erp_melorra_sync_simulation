@@ -132,6 +132,59 @@ class InvoicePostingResponse(BaseModel):
     Status: str
     TagNo: str
 
+# --- Golden Bounty Installment Schemas (4th Endpoint) ---
+# Dates are dd-MM-yyyy strings
+class GoldenBountyPaymentDetail(BaseModel):
+    paymentMode: Optional[str] = ""  # Cash/UPI/CC/RazorPay
+    installmentDate: Optional[str] = ""
+    amount: Optional[float] = 0.0
+    utrNo: Optional[str] = ""
+    transactionId: Optional[str] = ""
+    userId: Optional[str] = ""
+    refNo: Optional[str] = ""
+    enrolmentId: Optional[str] = ""
+    fnoCustomerId: Optional[str] = ""
+
+class GoldenBountyLine(BaseModel):
+    enrolmentId: Optional[str] = ""
+    enrolmentDate: Optional[str] = ""
+    maturityDate: Optional[str] = ""
+    installmentDate: Optional[str] = ""
+    installmentAmount: Optional[float] = 0.0
+    InstallmentNo: Optional[str] = ""
+    paymentDetails: Optional[List[GoldenBountyPaymentDetail]] = []
+
+class GoldenBountyHeader(BaseModel):
+    company: Optional[str] = "SGL"
+    enrolmentId: Optional[str] = ""
+    enrolmentDate: Optional[str] = ""
+    maturityDate: Optional[str] = ""
+    tenure: Optional[str] = ""
+    installmentAmount: Optional[float] = 0.0
+    copayAmount: Optional[float] = 0.0
+    maturityAmount: Optional[float] = 0.0
+    customerId: Optional[str] = ""
+    customerName: Optional[str] = ""
+    address: Optional[str] = ""
+    city: Optional[str] = ""
+    mobileNo: Optional[str] = ""
+    emailId: Optional[str] = ""
+    fnoCustomerId: Optional[str] = ""  # Not mandatory
+    noOfInstallment: Optional[str] = ""
+    enrolmentStatus: Optional[str] = ""
+    schemeCode: Optional[str] = ""
+    schemeName: Optional[str] = ""
+    orderLines: Optional[List[GoldenBountyLine]] = []
+
+class GoldenBountyRequest(BaseModel):
+    header: GoldenBountyHeader
+
+class GoldenBountyResponse(BaseModel):
+    Message: str
+    StatusCode: str
+    Status: str
+    SchemeCode: str
+
 # --- Response Schema ---
 class IntegrationResponse(BaseModel):
     Message: str

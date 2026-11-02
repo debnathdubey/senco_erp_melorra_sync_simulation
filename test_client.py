@@ -141,6 +141,52 @@ invoice_posting_payload = {
   "timeStamp": ""
 }
 
+golden_bounty_payload = {
+  "header": {
+    "company": "SGL",
+    "enrolmentId": "98765",
+    "enrolmentDate": "16-09-2026",
+    "maturityDate": "16-08-2027",
+    "tenure": "12",
+    "installmentAmount": 1000,
+    "copayAmount": 600,
+    "maturityAmount": 12600,
+    "customerId": "C2345",
+    "customerName": "T Ganesha",
+    "address": "H No. 56, First Floor, Mahadevpura",
+    "city": "Banglore",
+    "mobileNo": "9035530992",
+    "emailId": "t.ganesh@Melorra.com",
+    "fnoCustomerId": "CUS23451",
+    "noOfInstallment": "12",
+    "enrolmentStatus": "OnGoing",
+    "schemeCode": "GB12",
+    "schemeName": "GoldenBounty 12 Month",
+    "orderLines": [
+      {
+        "enrolmentId": "98765",
+        "enrolmentDate": "16-09-2026",
+        "maturityDate": "16-08-2027",
+        "installmentDate": "16-10-2026",
+        "installmentAmount": 1000,
+        "InstallmentNo": "2",
+        "paymentDetails": [
+          {
+            "paymentMode": "RazorPay",
+            "installmentDate": "16-10-2026",
+            "amount": "1000",
+            "utrNo": "UT564926761G54",
+            "transactionId": "P54637221",
+            "userId": "Usr1",
+            "refNo": "RF67584",
+            "enrolmentId": "98765"
+          }
+        ]
+      }
+    ]
+  }
+}
+
 
 def run_tests():
     print("==================================================")
@@ -191,6 +237,28 @@ def run_tests():
     # Test 6: Invoice Posting Failure Override (404)
     print("\n[TEST 6] POST /MelorraIntegration/mel_InvoicePosting/ (Overridden Failure 404 Mode)...")
     res = requests.post(f"{BASE_URL}/MelorraIntegration/mel_InvoicePosting/", headers=headers_fail, json=invoice_posting_payload)
+    print(f"HTTP Status: {res.status_code}")
+    print(f"Response: {json.dumps(res.json(), indent=2)}")
+
+    # Test 7: Golden Bounty Endpoint 4 Success (200)
+    print("\n[TEST 7] POST /MelorraIntegration/mel_goldenbounty/ (Endpoint 4)...")
+    res = requests.post(f"{BASE_URL}/MelorraIntegration/mel_goldenbounty/", headers=headers_valid, json=golden_bounty_payload)
+    print(f"HTTP Status: {res.status_code}")
+    print(f"Response: {json.dumps(res.json(), indent=2)}")
+
+    # Test 8: Golden Bounty Failure Override (404)
+    print("\n[TEST 8] POST /MelorraIntegration/mel_goldenbounty/ (Overridden Failure 404 Mode)...")
+    res = requests.post(f"{BASE_URL}/MelorraIntegration/mel_goldenbounty/", headers=headers_fail, json=golden_bounty_payload)
+    print(f"HTTP Status: {res.status_code}")
+    print(f"Response: {json.dumps(res.json(), indent=2)}")
+
+    # Test 9: Golden Bounty Validation Failure (400)
+    print("\n[TEST 9] POST /MelorraIntegration/mel_goldenbounty/ (Invalid Fields 400)...")
+    invalid_payload = json.loads(json.dumps(golden_bounty_payload))
+    del invalid_payload["header"]["customerId"]
+    invalid_payload["header"]["enrolmentDate"] = "2026-09-16"
+    invalid_payload["header"]["orderLines"][0]["paymentDetails"][0]["utrNo"] = "UTR" + "9" * 30
+    res = requests.post(f"{BASE_URL}/MelorraIntegration/mel_goldenbounty/", headers=headers_valid, json=invalid_payload)
     print(f"HTTP Status: {res.status_code}")
     print(f"Response: {json.dumps(res.json(), indent=2)}")
 
